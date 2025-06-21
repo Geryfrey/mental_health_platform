@@ -11,6 +11,9 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { BookOpen, Plus, Search, Calendar, Smile, TrendingUp } from "lucide-react"
 import { supabase } from "@/lib/supabase"
 import { LogoutButton } from "@/components/layout/logout-button"
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog"
+import { Textarea } from "@/components/ui/textarea"
+import { Label } from "@/components/ui/label"
 
 const moodOptions = [
   { value: "excellent", label: "Excellent", icon: "😄", color: "bg-green-100 text-green-800" },
@@ -118,6 +121,11 @@ export default function JournalPage() {
     }
   }
 
+  const handleOpenDialog = () => {
+    console.log("Opening dialog...")
+    setIsDialogOpen(true)
+  }
+
   // Calculate stats
   const totalEntries = entries.length
   const daysActive = new Set(entries.map((entry) => new Date(entry.created_at).toDateString())).size
@@ -195,6 +203,17 @@ export default function JournalPage() {
       </div>
 
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+        {/* Add Entry Button at Top */}
+        <div className="mb-8">
+          <Button
+            onClick={handleOpenDialog}
+            className="bg-gradient-to-r from-teal-500 to-blue-600 hover:from-teal-600 hover:to-blue-700"
+          >
+            <Plus className="h-4 w-4 mr-2" />
+            Add New Entry
+          </Button>
+        </div>
+
         {/* Stats Cards */}
         <div className="grid grid-cols-1 md:grid-cols-4 gap-6 mb-8">
           <Card className="border-0 shadow-lg">
@@ -246,6 +265,8 @@ export default function JournalPage() {
           </Card>
         </div>
 
+        {/* Floating Action Button */}
+
         {/* Search and Filter */}
         <Card className="border-0 shadow-lg mb-8">
           <CardContent className="p-6">
@@ -293,7 +314,7 @@ export default function JournalPage() {
                     ? "Start your wellness journey by creating your first journal entry."
                     : "Try adjusting your search or filter criteria."}
                 </p>
-                <Button onClick={() => setIsDialogOpen(true)} className="bg-gradient-to-r from-teal-500 to-blue-600">
+                <Button onClick={handleOpenDialog} className="bg-gradient-to-r from-teal-500 to-blue-600">
                   <Plus className="h-4 w-4 mr-2" />
                   Create First Entry
                 </Button>
@@ -336,6 +357,77 @@ export default function JournalPage() {
           )}
         </div>
       </div>
+
+      {/* Dialog Modal */}
+      <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
+        <DialogContent className="sm:max-w-[600px]">
+          <DialogHeader>
+            <DialogTitle>Create New Journal Entry</DialogTitle>
+          </DialogHeader>
+          <form onSubmit={handleSubmit} className="space-y-6">
+            <div className="space-y-2">
+              <Label htmlFor="title">Title</Label>
+              <Input
+                id="title"
+                placeholder="Give your entry a title..."
+                value={newEntry.title}
+                onChange={(e) => setNewEntry({ ...newEntry, title: e.target.value })}
+                required
+              />
+            </div>
+
+            <div className="space-y-2">
+              <Label htmlFor="content">Content</Label>
+              <Textarea
+                id="content"
+                placeholder="Write about your thoughts, feelings, or experiences..."
+                value={newEntry.content}
+                onChange={(e) => setNewEntry({ ...newEntry, content: e.target.value })}
+                className="min-h-[120px]"
+                required
+              />
+            </div>
+
+            <div className="space-y-2">
+              <Label htmlFor="mood">How are you feeling?</Label>
+              <Select value={newEntry.mood} onValueChange={(value) => setNewEntry({ ...newEntry, mood: value })}>
+                <SelectTrigger>
+                  <SelectValue placeholder="Select your mood" />
+                </SelectTrigger>
+                <SelectContent>
+                  {moodOptions.map((mood) => (
+                    <SelectItem key={mood.value} value={mood.value}>
+                      <span className="flex items-center space-x-2">
+                        <span>{mood.icon}</span>
+                        <span>{mood.label}</span>
+                      </span>
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+
+            <div className="space-y-2">
+              <Label htmlFor="tags">Tags (optional)</Label>
+              <Input
+                id="tags"
+                placeholder="Add tags separated by commas (e.g., study, stress, family)"
+                value={newEntry.tags}
+                onChange={(e) => setNewEntry({ ...newEntry, tags: e.target.value })}
+              />
+            </div>
+
+            <div className="flex justify-end space-x-3">
+              <Button type="button" variant="outline" onClick={() => setIsDialogOpen(false)}>
+                Cancel
+              </Button>
+              <Button type="submit" className="bg-gradient-to-r from-teal-500 to-blue-600">
+                Save Entry
+              </Button>
+            </div>
+          </form>
+        </DialogContent>
+      </Dialog>
     </div>
   )
 }

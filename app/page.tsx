@@ -11,40 +11,35 @@ export default function HomePage() {
 
       {/* Hero Section */}
       <section className="relative py-20 px-4 sm:px-6 lg:px-8">
-        <div className="max-w-7xl mx-auto text-center">
-          <div className="mb-8">
-            <div className="inline-flex items-center justify-center w-20 h-20 bg-gradient-to-r from-teal-500 to-blue-600 rounded-full mb-6">
-              <Brain className="h-10 w-10 text-white" />
-            </div>
-            <h1 className="text-4xl md:text-6xl font-bold text-gray-900 mb-6">
-              Student Wellness
-              <span className="block bg-gradient-to-r from-teal-600 to-blue-600 bg-clip-text text-transparent">
-                Assessment Platform
-              </span>
-            </h1>
-            <p className="text-xl text-gray-600 mb-8 max-w-3xl mx-auto">
-              AI-powered mental health support for Rwandan students. Get personalized assessments, resources, and
-              connect with local mental health professionals when you need them most.
-            </p>
-            <div className="flex flex-col sm:flex-row gap-4 justify-center">
-              <Link href="/signup">
-                <Button
-                  size="lg"
-                  className="bg-gradient-to-r from-teal-500 to-blue-600 hover:from-teal-600 hover:to-blue-700 px-8 py-3 text-lg"
-                >
-                  Start Your Assessment
-                </Button>
-              </Link>
-              <Link href="#how-it-works">
-                <Button
-                  size="lg"
-                  variant="outline"
-                  className="bg-white text-teal-600 border-teal-200 hover:bg-teal-50 px-8 py-3 text-lg"
-                >
-                  Learn More
-                </Button>
-              </Link>
-            </div>
+        <div className="max-w-4xl mx-auto text-center">
+          <div className="mb-6">
+            <span className="inline-block px-4 py-2 bg-blue-100 text-blue-600 rounded-full text-sm font-medium mb-8">
+              Rwanda's First Student Mental Health Platform
+            </span>
+          </div>
+
+          <h1 className="text-4xl md:text-6xl font-bold text-gray-900 mb-6 leading-tight">
+            Student Wellness
+            <br />
+            <span className="bg-gradient-to-r from-blue-600 to-teal-600 bg-clip-text text-transparent">
+              Assessment Platform
+            </span>
+          </h1>
+
+          <p className="text-xl text-gray-600 mb-12 max-w-3xl mx-auto leading-relaxed">
+            AI-powered mental health support for Rwandan students. Get personalized wellness assessments, connect with
+            local professionals, and access curated resources tailored to your needs.
+          </p>
+
+          <div className="flex justify-center">
+            <Link href="/signup">
+              <Button
+                size="lg"
+                className="bg-gradient-to-r from-blue-500 to-teal-500 hover:from-blue-600 hover:to-teal-600 px-8 py-4 text-lg font-semibold rounded-lg shadow-lg hover:shadow-xl transition-all duration-200"
+              >
+                Start Free Assessment
+              </Button>
+            </Link>
           </div>
         </div>
       </section>
