@@ -34,7 +34,14 @@ export function AnalyticsOverview() {
     verifiedProfessionals: 0,
   })
 
-  const [chartData, setChartData] = useState({
+  const [chartData, setChartData] = useState<{
+    riskLevels: any[]
+    sentiments: any[]
+    conditions: any[]
+    weeklyAssessments: any[]
+    monthlyTrends: any[]
+    wellnessScores: any[]
+  }>({
     riskLevels: [],
     sentiments: [],
     conditions: [],
@@ -49,6 +56,8 @@ export function AnalyticsOverview() {
 
   const fetchAnalyticsData = async () => {
     try {
+      console.log("Fetching analytics data...")
+
       // Fetch basic stats
       const [usersData, resourcesData, assessmentsData, professionalsData] = await Promise.all([
         supabase.from("users").select("user_type"),
@@ -57,9 +66,17 @@ export function AnalyticsOverview() {
         supabase.from("professionals").select("is_verified"),
       ])
 
+      console.log("Raw data:", { usersData, assessmentsData, professionalsData })
+
       const users = usersData.data || []
       const assessments = assessmentsData.data || []
       const professionals = professionalsData.data || []
+
+      console.log("Processed data:", {
+        users: users.length,
+        assessments: assessments.length,
+        professionals: professionals.length,
+      })
 
       // Calculate basic stats
       const totalStudents = users.filter((u) => u.user_type === "student").length
@@ -77,13 +94,19 @@ export function AnalyticsOverview() {
       })
 
       // Process chart data
-      processChartData(assessments)
+      if (assessments.length > 0) {
+        processChartData(assessments)
+      } else {
+        console.log("No assessments found")
+      }
     } catch (error) {
       console.error("Error fetching analytics data:", error)
     }
   }
 
   const processChartData = (assessments: any[]) => {
+    console.log("Processing chart data for", assessments.length, "assessments")
+
     // Risk level distribution
     const riskLevels = [
       { name: "Low", value: assessments.filter((a) => a.risk_level === "low").length, color: "#10B981" },
@@ -92,12 +115,16 @@ export function AnalyticsOverview() {
       { name: "Critical", value: assessments.filter((a) => a.risk_level === "critical").length, color: "#EF4444" },
     ]
 
+    console.log("Risk levels:", riskLevels)
+
     // Sentiment distribution
     const sentiments = [
       { name: "Positive", value: assessments.filter((a) => a.sentiment === "positive").length, color: "#10B981" },
       { name: "Neutral", value: assessments.filter((a) => a.sentiment === "neutral").length, color: "#6B7280" },
       { name: "Negative", value: assessments.filter((a) => a.sentiment === "negative").length, color: "#EF4444" },
     ]
+
+    console.log("Sentiments:", sentiments)
 
     // Common conditions
     const allConditions = assessments.flatMap((a) => a.detected_conditions || [])
@@ -111,15 +138,21 @@ export function AnalyticsOverview() {
       .sort((a: any, b: any) => b.count - a.count)
       .slice(0, 8)
 
+    console.log("Conditions:", conditions)
+
     // Weekly assessments trend
     const weeklyData = getWeeklyTrend(assessments)
+    console.log("Weekly data:", weeklyData)
 
     // Monthly wellness score trend
     const monthlyTrends = getMonthlyWellnessTrend(assessments)
+    console.log("Monthly trends:", monthlyTrends)
 
     // Wellness score distribution
     const wellnessScores = getWellnessScoreDistribution(assessments)
+    console.log("Wellness scores:", wellnessScores)
 
+    // Update chart data state
     setChartData({
       riskLevels,
       sentiments,
@@ -137,8 +170,10 @@ export function AnalyticsOverview() {
     for (let i = 6; i >= 0; i--) {
       const weekStart = new Date(now)
       weekStart.setDate(now.getDate() - i * 7)
+      weekStart.setHours(0, 0, 0, 0)
       const weekEnd = new Date(weekStart)
       weekEnd.setDate(weekStart.getDate() + 6)
+      weekEnd.setHours(23, 59, 59, 999)
 
       const weekAssessments = assessments.filter((a) => {
         const date = new Date(a.created_at)
@@ -146,7 +181,7 @@ export function AnalyticsOverview() {
       })
 
       weeks.push({
-        week: `Week ${7 - i}`,
+        week: i === 0 ? "This Week" : `${i} week${i > 1 ? "s" : ""} ago`,
         assessments: weekAssessments.length,
         critical: weekAssessments.filter((a) => a.risk_level === "critical").length,
         high: weekAssessments.filter((a) => a.risk_level === "high").length,
@@ -163,6 +198,7 @@ export function AnalyticsOverview() {
     for (let i = 5; i >= 0; i--) {
       const monthStart = new Date(now.getFullYear(), now.getMonth() - i, 1)
       const monthEnd = new Date(now.getFullYear(), now.getMonth() - i + 1, 0)
+      monthEnd.setHours(23, 59, 59, 999)
 
       const monthAssessments = assessments.filter((a) => {
         const date = new Date(a.created_at)
@@ -175,7 +211,7 @@ export function AnalyticsOverview() {
           : 0
 
       months.push({
-        month: monthStart.toLocaleDateString("en-US", { month: "short" }),
+        month: i === 0 ? "This Month" : monthStart.toLocaleDateString("en-US", { month: "short" }),
         wellness: avgWellness,
         assessments: monthAssessments.length,
       })
@@ -198,6 +234,8 @@ export function AnalyticsOverview() {
       count: assessments.filter((a) => a.wellness_score >= range.min && a.wellness_score <= range.max).length,
     }))
   }
+
+  console.log("Current chart data state:", chartData)
 
   return (
     <div className="space-y-8">
@@ -280,7 +318,7 @@ export function AnalyticsOverview() {
               <div>
                 <p className="text-sm font-medium text-gray-600">Avg Wellness</p>
                 <p className="text-3xl font-bold text-gray-900">
-                  {stats.totalAssessments > 0
+                  {chartData.monthlyTrends.length > 0
                     ? Math.round(
                         chartData.monthlyTrends.reduce((sum: number, month: any) => sum + month.wellness, 0) /
                           chartData.monthlyTrends.length,
@@ -305,23 +343,27 @@ export function AnalyticsOverview() {
             <CardDescription>Current risk assessment breakdown</CardDescription>
           </CardHeader>
           <CardContent>
-            <ResponsiveContainer width="100%" height={300}>
-              <PieChart>
-                <Pie
-                  data={chartData.riskLevels}
-                  cx="50%"
-                  cy="50%"
-                  outerRadius={80}
-                  dataKey="value"
-                  label={({ name, value, percent }) => `${name}: ${value} (${(percent * 100).toFixed(0)}%)`}
-                >
-                  {chartData.riskLevels.map((entry: any, index) => (
-                    <Cell key={`cell-${index}`} fill={entry.color} />
-                  ))}
-                </Pie>
-                <Tooltip />
-              </PieChart>
-            </ResponsiveContainer>
+            {chartData.riskLevels.length > 0 ? (
+              <ResponsiveContainer width="100%" height={300}>
+                <PieChart>
+                  <Pie
+                    data={chartData.riskLevels}
+                    cx="50%"
+                    cy="50%"
+                    outerRadius={80}
+                    dataKey="value"
+                    label={({ name, value, percent }) => `${name}: ${value} (${(percent * 100).toFixed(0)}%)`}
+                  >
+                    {chartData.riskLevels.map((entry: any, index) => (
+                      <Cell key={`cell-${index}`} fill={entry.color} />
+                    ))}
+                  </Pie>
+                  <Tooltip />
+                </PieChart>
+              </ResponsiveContainer>
+            ) : (
+              <div className="flex items-center justify-center h-[300px] text-gray-500">No data available</div>
+            )}
           </CardContent>
         </Card>
 
@@ -332,23 +374,27 @@ export function AnalyticsOverview() {
             <CardDescription>Overall emotional sentiment trends</CardDescription>
           </CardHeader>
           <CardContent>
-            <ResponsiveContainer width="100%" height={300}>
-              <PieChart>
-                <Pie
-                  data={chartData.sentiments}
-                  cx="50%"
-                  cy="50%"
-                  outerRadius={80}
-                  dataKey="value"
-                  label={({ name, value, percent }) => `${name}: ${value} (${(percent * 100).toFixed(0)}%)`}
-                >
-                  {chartData.sentiments.map((entry: any, index) => (
-                    <Cell key={`cell-${index}`} fill={entry.color} />
-                  ))}
-                </Pie>
-                <Tooltip />
-              </PieChart>
-            </ResponsiveContainer>
+            {chartData.sentiments.length > 0 ? (
+              <ResponsiveContainer width="100%" height={300}>
+                <PieChart>
+                  <Pie
+                    data={chartData.sentiments}
+                    cx="50%"
+                    cy="50%"
+                    outerRadius={80}
+                    dataKey="value"
+                    label={({ name, value, percent }) => `${name}: ${value} (${(percent * 100).toFixed(0)}%)`}
+                  >
+                    {chartData.sentiments.map((entry: any, index) => (
+                      <Cell key={`cell-${index}`} fill={entry.color} />
+                    ))}
+                  </Pie>
+                  <Tooltip />
+                </PieChart>
+              </ResponsiveContainer>
+            ) : (
+              <div className="flex items-center justify-center h-[300px] text-gray-500">No data available</div>
+            )}
           </CardContent>
         </Card>
 
@@ -359,16 +405,20 @@ export function AnalyticsOverview() {
             <CardDescription>Assessment volume and critical cases over time</CardDescription>
           </CardHeader>
           <CardContent>
-            <ResponsiveContainer width="100%" height={300}>
-              <AreaChart data={chartData.weeklyAssessments}>
-                <CartesianGrid strokeDasharray="3 3" />
-                <XAxis dataKey="week" />
-                <YAxis />
-                <Tooltip />
-                <Area type="monotone" dataKey="assessments" stackId="1" stroke="#0D9488" fill="#0D9488" />
-                <Area type="monotone" dataKey="critical" stackId="2" stroke="#EF4444" fill="#EF4444" />
-              </AreaChart>
-            </ResponsiveContainer>
+            {chartData.weeklyAssessments.some((week) => week.assessments > 0) ? (
+              <ResponsiveContainer width="100%" height={300}>
+                <AreaChart data={chartData.weeklyAssessments}>
+                  <CartesianGrid strokeDasharray="3 3" />
+                  <XAxis dataKey="week" />
+                  <YAxis />
+                  <Tooltip />
+                  <Area type="monotone" dataKey="assessments" stackId="1" stroke="#0D9488" fill="#0D9488" />
+                  <Area type="monotone" dataKey="critical" stackId="2" stroke="#EF4444" fill="#EF4444" />
+                </AreaChart>
+              </ResponsiveContainer>
+            ) : (
+              <div className="flex items-center justify-center h-[300px] text-gray-500">No data available</div>
+            )}
           </CardContent>
         </Card>
 
@@ -379,15 +429,19 @@ export function AnalyticsOverview() {
             <CardDescription>Average wellness scores over the past 6 months</CardDescription>
           </CardHeader>
           <CardContent>
-            <ResponsiveContainer width="100%" height={300}>
-              <LineChart data={chartData.monthlyTrends}>
-                <CartesianGrid strokeDasharray="3 3" />
-                <XAxis dataKey="month" />
-                <YAxis domain={[0, 100]} />
-                <Tooltip />
-                <Line type="monotone" dataKey="wellness" stroke="#0D9488" strokeWidth={3} />
-              </LineChart>
-            </ResponsiveContainer>
+            {chartData.monthlyTrends.some((month) => month.assessments > 0) ? (
+              <ResponsiveContainer width="100%" height={300}>
+                <LineChart data={chartData.monthlyTrends}>
+                  <CartesianGrid strokeDasharray="3 3" />
+                  <XAxis dataKey="month" />
+                  <YAxis domain={[0, 100]} />
+                  <Tooltip />
+                  <Line type="monotone" dataKey="wellness" stroke="#0D9488" strokeWidth={3} />
+                </LineChart>
+              </ResponsiveContainer>
+            ) : (
+              <div className="flex items-center justify-center h-[300px] text-gray-500">No data available</div>
+            )}
           </CardContent>
         </Card>
 
@@ -398,15 +452,19 @@ export function AnalyticsOverview() {
             <CardDescription>Frequently detected mental health conditions</CardDescription>
           </CardHeader>
           <CardContent>
-            <ResponsiveContainer width="100%" height={300}>
-              <BarChart data={chartData.conditions}>
-                <CartesianGrid strokeDasharray="3 3" />
-                <XAxis dataKey="name" angle={-45} textAnchor="end" height={80} />
-                <YAxis />
-                <Tooltip />
-                <Bar dataKey="count" fill="#0D9488" />
-              </BarChart>
-            </ResponsiveContainer>
+            {chartData.conditions.length > 0 ? (
+              <ResponsiveContainer width="100%" height={300}>
+                <BarChart data={chartData.conditions}>
+                  <CartesianGrid strokeDasharray="3 3" />
+                  <XAxis dataKey="name" angle={-45} textAnchor="end" height={80} />
+                  <YAxis />
+                  <Tooltip />
+                  <Bar dataKey="count" fill="#0D9488" />
+                </BarChart>
+              </ResponsiveContainer>
+            ) : (
+              <div className="flex items-center justify-center h-[300px] text-gray-500">No data available</div>
+            )}
           </CardContent>
         </Card>
 
@@ -417,15 +475,19 @@ export function AnalyticsOverview() {
             <CardDescription>Distribution of wellness scores across all assessments</CardDescription>
           </CardHeader>
           <CardContent>
-            <ResponsiveContainer width="100%" height={300}>
-              <BarChart data={chartData.wellnessScores}>
-                <CartesianGrid strokeDasharray="3 3" />
-                <XAxis dataKey="range" />
-                <YAxis />
-                <Tooltip />
-                <Bar dataKey="count" fill="#3B82F6" />
-              </BarChart>
-            </ResponsiveContainer>
+            {chartData.wellnessScores.length > 0 ? (
+              <ResponsiveContainer width="100%" height={300}>
+                <BarChart data={chartData.wellnessScores}>
+                  <CartesianGrid strokeDasharray="3 3" />
+                  <XAxis dataKey="range" />
+                  <YAxis />
+                  <Tooltip />
+                  <Bar dataKey="count" fill="#3B82F6" />
+                </BarChart>
+              </ResponsiveContainer>
+            ) : (
+              <div className="flex items-center justify-center h-[300px] text-gray-500">No data available</div>
+            )}
           </CardContent>
         </Card>
       </div>

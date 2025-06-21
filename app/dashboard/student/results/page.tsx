@@ -33,9 +33,13 @@ export default function ResultsPage() {
   const fetchAssessments = async () => {
     try {
       const userData = localStorage.getItem("user")
-      if (!userData) return
+      if (!userData) {
+        setLoading(false)
+        return
+      }
 
       const user = JSON.parse(userData)
+      console.log("Fetching assessments for user:", user.id)
 
       const { data, error } = await supabase
         .from("assessments")
@@ -43,7 +47,12 @@ export default function ResultsPage() {
         .eq("student_id", user.id)
         .order("created_at", { ascending: false })
 
-      if (error) throw error
+      if (error) {
+        console.error("Supabase error:", error)
+        throw error
+      }
+
+      console.log("Fetched assessments:", data)
       setAssessments(data || [])
     } catch (error) {
       console.error("Error fetching assessments:", error)
@@ -53,11 +62,14 @@ export default function ResultsPage() {
   }
 
   // Process data for charts
-  const wellnessData = assessments.map((assessment, index) => ({
-    date: new Date(assessment.created_at).toLocaleDateString(),
-    score: assessment.wellness_score,
-    assessment: assessments.length - index,
-  }))
+  const wellnessData = assessments
+    .map((assessment, index) => ({
+      date: new Date(assessment.created_at).toLocaleDateString(),
+      score: assessment.wellness_score,
+      assessment: `Assessment ${index + 1}`,
+      timestamp: new Date(assessment.created_at).getTime(),
+    }))
+    .sort((a, b) => a.timestamp - b.timestamp)
 
   const riskLevelData = [
     { name: "Low", value: assessments.filter((a) => a.risk_level === "low").length, color: "#10B981" },
@@ -83,6 +95,8 @@ export default function ResultsPage() {
     .map(([name, count]) => ({ name: name.replace("_", " "), count }))
     .sort((a: any, b: any) => b.count - a.count)
     .slice(0, 5)
+
+  console.log("Chart data:", { wellnessData, riskLevelData, sentimentData, conditionsData })
 
   const getRiskLevelColor = (level: string) => {
     switch (level) {
@@ -156,6 +170,11 @@ export default function ResultsPage() {
       </div>
 
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+        {/* Debug Info */}
+        <div className="mb-4 p-4 bg-gray-100 rounded-lg">
+          <p className="text-sm text-gray-600">Debug: Found {assessments.length} assessments</p>
+        </div>
+
         {/* Overview Stats */}
         <div className="grid grid-cols-1 md:grid-cols-4 gap-6 mb-8">
           <Card className="border-0 shadow-lg">
@@ -224,15 +243,21 @@ export default function ResultsPage() {
               <CardDescription>Your wellness score over time</CardDescription>
             </CardHeader>
             <CardContent>
-              <ResponsiveContainer width="100%" height={300}>
-                <LineChart data={wellnessData}>
-                  <CartesianGrid strokeDasharray="3 3" />
-                  <XAxis dataKey="assessment" />
-                  <YAxis domain={[0, 100]} />
-                  <Tooltip />
-                  <Line type="monotone" dataKey="score" stroke="#0D9488" strokeWidth={2} />
-                </LineChart>
-              </ResponsiveContainer>
+              {assessments.length > 0 ? (
+                <ResponsiveContainer width="100%" height={300}>
+                  <LineChart data={wellnessData}>
+                    <CartesianGrid strokeDasharray="3 3" />
+                    <XAxis dataKey="assessment" />
+                    <YAxis domain={[0, 100]} />
+                    <Tooltip />
+                    <Line type="monotone" dataKey="score" stroke="#0D9488" strokeWidth={2} />
+                  </LineChart>
+                </ResponsiveContainer>
+              ) : (
+                <div className="flex items-center justify-center h-[300px] text-gray-500">
+                  No assessment data available
+                </div>
+              )}
             </CardContent>
           </Card>
 
@@ -243,23 +268,31 @@ export default function ResultsPage() {
               <CardDescription>Breakdown of your risk levels</CardDescription>
             </CardHeader>
             <CardContent>
-              <ResponsiveContainer width="100%" height={300}>
-                <PieChart>
-                  <Pie
-                    data={riskLevelData}
-                    cx="50%"
-                    cy="50%"
-                    outerRadius={80}
-                    dataKey="value"
-                    label={({ name, value }) => `${name}: ${value}`}
-                  >
-                    {riskLevelData.map((entry, index) => (
-                      <Cell key={`cell-${index}`} fill={entry.color} />
-                    ))}
-                  </Pie>
-                  <Tooltip />
-                </PieChart>
-              </ResponsiveContainer>
+              {assessments.length > 0 ? (
+                <ResponsiveContainer width="100%" height={300}>
+                  <PieChart>
+                    <Pie
+                      data={riskLevelData.filter((d) => d.value > 0)}
+                      cx="50%"
+                      cy="50%"
+                      outerRadius={80}
+                      dataKey="value"
+                      label={({ name, value }) => `${name}: ${value}`}
+                    >
+                      {riskLevelData
+                        .filter((d) => d.value > 0)
+                        .map((entry, index) => (
+                          <Cell key={`cell-${index}`} fill={entry.color} />
+                        ))}
+                    </Pie>
+                    <Tooltip />
+                  </PieChart>
+                </ResponsiveContainer>
+              ) : (
+                <div className="flex items-center justify-center h-[300px] text-gray-500">
+                  No risk level data available
+                </div>
+              )}
             </CardContent>
           </Card>
 
@@ -270,15 +303,21 @@ export default function ResultsPage() {
               <CardDescription>Most frequently detected conditions</CardDescription>
             </CardHeader>
             <CardContent>
-              <ResponsiveContainer width="100%" height={300}>
-                <BarChart data={conditionsData}>
-                  <CartesianGrid strokeDasharray="3 3" />
-                  <XAxis dataKey="name" />
-                  <YAxis />
-                  <Tooltip />
-                  <Bar dataKey="count" fill="#0D9488" />
-                </BarChart>
-              </ResponsiveContainer>
+              {conditionsData.length > 0 ? (
+                <ResponsiveContainer width="100%" height={300}>
+                  <BarChart data={conditionsData}>
+                    <CartesianGrid strokeDasharray="3 3" />
+                    <XAxis dataKey="name" />
+                    <YAxis />
+                    <Tooltip />
+                    <Bar dataKey="count" fill="#0D9488" />
+                  </BarChart>
+                </ResponsiveContainer>
+              ) : (
+                <div className="flex items-center justify-center h-[300px] text-gray-500">
+                  No conditions data available
+                </div>
+              )}
             </CardContent>
           </Card>
 
@@ -289,23 +328,31 @@ export default function ResultsPage() {
               <CardDescription>Your emotional sentiment patterns</CardDescription>
             </CardHeader>
             <CardContent>
-              <ResponsiveContainer width="100%" height={300}>
-                <PieChart>
-                  <Pie
-                    data={sentimentData}
-                    cx="50%"
-                    cy="50%"
-                    outerRadius={80}
-                    dataKey="value"
-                    label={({ name, value }) => `${name}: ${value}`}
-                  >
-                    {sentimentData.map((entry, index) => (
-                      <Cell key={`cell-${index}`} fill={entry.color} />
-                    ))}
-                  </Pie>
-                  <Tooltip />
-                </PieChart>
-              </ResponsiveContainer>
+              {assessments.length > 0 ? (
+                <ResponsiveContainer width="100%" height={300}>
+                  <PieChart>
+                    <Pie
+                      data={sentimentData.filter((d) => d.value > 0)}
+                      cx="50%"
+                      cy="50%"
+                      outerRadius={80}
+                      dataKey="value"
+                      label={({ name, value }) => `${name}: ${value}`}
+                    >
+                      {sentimentData
+                        .filter((d) => d.value > 0)
+                        .map((entry, index) => (
+                          <Cell key={`cell-${index}`} fill={entry.color} />
+                        ))}
+                    </Pie>
+                    <Tooltip />
+                  </PieChart>
+                </ResponsiveContainer>
+              ) : (
+                <div className="flex items-center justify-center h-[300px] text-gray-500">
+                  No sentiment data available
+                </div>
+              )}
             </CardContent>
           </Card>
         </div>
@@ -317,35 +364,41 @@ export default function ResultsPage() {
             <CardDescription>Detailed history of all your assessments</CardDescription>
           </CardHeader>
           <CardContent>
-            <div className="space-y-4">
-              {assessments.map((assessment) => (
-                <div key={assessment.id} className="p-4 bg-white rounded-lg border border-gray-200">
-                  <div className="flex justify-between items-start mb-3">
-                    <div>
-                      <p className="font-medium text-gray-900">
-                        {new Date(assessment.created_at).toLocaleDateString()} at{" "}
-                        {new Date(assessment.created_at).toLocaleTimeString()}
-                      </p>
-                      <div className="flex items-center space-x-4 mt-2">
-                        <Badge className={getRiskLevelColor(assessment.risk_level)}>{assessment.risk_level}</Badge>
-                        <span className="text-sm text-gray-600">Wellness Score: {assessment.wellness_score}/100</span>
+            {assessments.length > 0 ? (
+              <div className="space-y-4">
+                {assessments.map((assessment) => (
+                  <div key={assessment.id} className="p-4 bg-white rounded-lg border border-gray-200">
+                    <div className="flex justify-between items-start mb-3">
+                      <div>
+                        <p className="font-medium text-gray-900">
+                          {new Date(assessment.created_at).toLocaleDateString()} at{" "}
+                          {new Date(assessment.created_at).toLocaleTimeString()}
+                        </p>
+                        <div className="flex items-center space-x-4 mt-2">
+                          <Badge className={getRiskLevelColor(assessment.risk_level)}>{assessment.risk_level}</Badge>
+                          <span className="text-sm text-gray-600">Wellness Score: {assessment.wellness_score}/100</span>
+                        </div>
                       </div>
+                      <Progress value={assessment.wellness_score} className="w-24" />
                     </div>
-                    <Progress value={assessment.wellness_score} className="w-24" />
-                  </div>
 
-                  <div className="flex flex-wrap gap-2 mb-3">
-                    {assessment.detected_conditions?.map((condition: string, index: number) => (
-                      <Badge key={index} variant="secondary" className="bg-blue-100 text-blue-800">
-                        {condition.replace("_", " ")}
-                      </Badge>
-                    ))}
-                  </div>
+                    <div className="flex flex-wrap gap-2 mb-3">
+                      {assessment.detected_conditions?.map((condition: string, index: number) => (
+                        <Badge key={index} variant="secondary" className="bg-blue-100 text-blue-800">
+                          {condition.replace("_", " ")}
+                        </Badge>
+                      ))}
+                    </div>
 
-                  <p className="text-sm text-gray-600 line-clamp-2">{assessment.text_content}</p>
-                </div>
-              ))}
-            </div>
+                    <p className="text-sm text-gray-600 line-clamp-2">{assessment.text_content}</p>
+                  </div>
+                ))}
+              </div>
+            ) : (
+              <div className="text-center py-8 text-gray-500">
+                No assessments found. Take your first assessment to see your results here.
+              </div>
+            )}
           </CardContent>
         </Card>
       </div>
