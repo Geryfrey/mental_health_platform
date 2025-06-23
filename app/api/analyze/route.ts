@@ -17,7 +17,7 @@ function extractJSON(raw: string): any {
     .trim()
 
   // 2. If the model still wrapped the JSON in explanatory text,
-  //    attempt to locate the first “{” and last “}”
+  //    attempt to locate the first "{" and last "}"
   if (!cleaned.startsWith("{") && cleaned.includes("{")) {
     cleaned = cleaned.slice(cleaned.indexOf("{"))
   }
@@ -57,12 +57,25 @@ export async function POST(req: NextRequest) {
           "recommendations": [...]
         }
 
+        IMPORTANT: riskLevel must be one of: "low", "moderate", "high" (no critical level)
+        - low: 70-100 wellness score
+        - moderate: 40-69 wellness score  
+        - high: 0-39 wellness score
+
         Text:
         """${text}"""
       `,
     })
 
     const analysis = extractJSON(raw)
+
+    // Ensure risk level is one of the three allowed values
+    if (!["low", "moderate", "high"].includes(analysis.riskLevel)) {
+      // Map based on wellness score if AI returns invalid risk level
+      if (analysis.wellnessScore >= 70) analysis.riskLevel = "low"
+      else if (analysis.wellnessScore >= 40) analysis.riskLevel = "moderate"
+      else analysis.riskLevel = "high"
+    }
 
     return NextResponse.json({ analysis })
   } catch (err) {

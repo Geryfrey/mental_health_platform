@@ -9,7 +9,7 @@ import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Label } from "@/components/ui/label"
-import { Brain, Eye, EyeOff, User, GraduationCap } from "lucide-react"
+import { Brain, Eye, EyeOff, User, GraduationCap, AlertCircle } from "lucide-react"
 import { signUp } from "@/lib/auth"
 
 export default function SignUpPage() {
@@ -27,21 +27,107 @@ export default function SignUpPage() {
   const [showConfirmPassword, setShowConfirmPassword] = useState(false)
   const [isLoading, setIsLoading] = useState(false)
   const [error, setError] = useState("")
+  const [validationErrors, setValidationErrors] = useState({
+    registration_number: "",
+    password: "",
+  })
   const router = useRouter()
+
+  // Validation functions
+  const validateRegistrationNumber = (regNumber: string) => {
+    if (!regNumber) return ""
+
+    // Check if it's exactly 9 digits
+    if (!/^\d{9}$/.test(regNumber)) {
+      return "Registration number must be exactly 9 digits"
+    }
+
+    // Check if it starts with 2
+    if (!regNumber.startsWith("2")) {
+      return "Registration number must start with 2"
+    }
+
+    return ""
+  }
+
+  const validatePassword = (password: string) => {
+    if (!password) return ""
+
+    if (password.length < 8) {
+      return "Password must be at least 8 characters long"
+    }
+
+    // Check for at least one number
+    if (!/\d/.test(password)) {
+      return "Password must contain at least one number"
+    }
+
+    // Check for at least one special character
+    if (!/[!@#$%^&*()_+\-=[\]{};':"\\|,.<>/?]/.test(password)) {
+      return "Password must contain at least one special character (!@#$%^&*()_+-=[]{}|;':\",./<>?)"
+    }
+
+    return ""
+  }
+
+  // Handle input changes with validation
+  const handleInputChange = (field: string, value: string) => {
+    setFormData({ ...formData, [field]: value })
+
+    // Real-time validation
+    if (field === "registration_number") {
+      const error = validateRegistrationNumber(value)
+      setValidationErrors((prev) => ({ ...prev, registration_number: error }))
+    }
+
+    if (field === "password") {
+      const error = validatePassword(value)
+      setValidationErrors((prev) => ({ ...prev, password: error }))
+    }
+  }
+
+  // Handle registration number input (restrict to 9 digits starting with 2)
+  const handleRegistrationNumberChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    let value = e.target.value.replace(/\D/g, "") // Remove non-digits
+
+    // Limit to 9 digits
+    if (value.length > 9) {
+      value = value.slice(0, 9)
+    }
+
+    // If user types something other than 2 as first digit, replace it with 2
+    if (value.length > 0 && !value.startsWith("2")) {
+      value = "2" + value.slice(1)
+    }
+
+    handleInputChange("registration_number", value)
+  }
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
     setIsLoading(true)
     setError("")
 
-    if (formData.password !== formData.confirmPassword) {
-      setError("Passwords do not match")
+    // Validate registration number for students
+    if (userType === "student") {
+      const regError = validateRegistrationNumber(formData.registration_number)
+      if (regError) {
+        setError(regError)
+        setIsLoading(false)
+        return
+      }
+    }
+
+    // Validate password
+    const passwordError = validatePassword(formData.password)
+    if (passwordError) {
+      setError(passwordError)
       setIsLoading(false)
       return
     }
 
-    if (formData.password.length < 6) {
-      setError("Password must be at least 6 characters long")
+    if (formData.password !== formData.confirmPassword) {
+      setError("Passwords do not match")
       setIsLoading(false)
       return
     }
@@ -125,7 +211,7 @@ export default function SignUpPage() {
                 type="text"
                 placeholder="Enter your full name"
                 value={formData.full_name}
-                onChange={(e) => setFormData({ ...formData, full_name: e.target.value })}
+                onChange={(e) => handleInputChange("full_name", e.target.value)}
                 required
                 className="h-11"
               />
@@ -141,10 +227,18 @@ export default function SignUpPage() {
                   type="text"
                   placeholder="e.g., 220014748"
                   value={formData.registration_number}
-                  onChange={(e) => setFormData({ ...formData, registration_number: e.target.value })}
+                  onChange={handleRegistrationNumberChange}
                   required
-                  className="h-11"
+                  className={`h-11 ${validationErrors.registration_number ? "border-red-500" : ""}`}
+                  maxLength={9}
                 />
+                {validationErrors.registration_number && (
+                  <div className="flex items-center space-x-1 text-sm text-red-600">
+                    <AlertCircle className="h-4 w-4" />
+                    <span>{validationErrors.registration_number}</span>
+                  </div>
+                )}
+                <div className="text-xs text-gray-500">Must be exactly 9 digits starting with 2</div>
               </div>
             ) : (
               <div className="space-y-2">
@@ -156,7 +250,7 @@ export default function SignUpPage() {
                   type="email"
                   placeholder="Enter your email"
                   value={formData.email}
-                  onChange={(e) => setFormData({ ...formData, email: e.target.value })}
+                  onChange={(e) => handleInputChange("email", e.target.value)}
                   required
                   className="h-11"
                 />
@@ -172,7 +266,7 @@ export default function SignUpPage() {
                 type="tel"
                 placeholder="+250 788 123 456"
                 value={formData.phone}
-                onChange={(e) => setFormData({ ...formData, phone: e.target.value })}
+                onChange={(e) => handleInputChange("phone", e.target.value)}
                 className="h-11"
               />
             </div>
@@ -186,7 +280,7 @@ export default function SignUpPage() {
                 type="text"
                 placeholder="City, District"
                 value={formData.location}
-                onChange={(e) => setFormData({ ...formData, location: e.target.value })}
+                onChange={(e) => handleInputChange("location", e.target.value)}
                 className="h-11"
               />
             </div>
@@ -201,9 +295,9 @@ export default function SignUpPage() {
                   type={showPassword ? "text" : "password"}
                   placeholder="Create a password"
                   value={formData.password}
-                  onChange={(e) => setFormData({ ...formData, password: e.target.value })}
+                  onChange={(e) => handleInputChange("password", e.target.value)}
                   required
-                  className="h-11 pr-10"
+                  className={`h-11 pr-10 ${validationErrors.password ? "border-red-500" : ""}`}
                 />
                 <Button
                   type="button"
@@ -214,6 +308,15 @@ export default function SignUpPage() {
                 >
                   {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
                 </Button>
+              </div>
+              {validationErrors.password && (
+                <div className="flex items-center space-x-1 text-sm text-red-600">
+                  <AlertCircle className="h-4 w-4" />
+                  <span>{validationErrors.password}</span>
+                </div>
+              )}
+              <div className="text-xs text-gray-500">
+                Must be 8+ characters with at least one number and one special character
               </div>
             </div>
 
@@ -227,7 +330,7 @@ export default function SignUpPage() {
                   type={showConfirmPassword ? "text" : "password"}
                   placeholder="Confirm your password"
                   value={formData.confirmPassword}
-                  onChange={(e) => setFormData({ ...formData, confirmPassword: e.target.value })}
+                  onChange={(e) => handleInputChange("confirmPassword", e.target.value)}
                   required
                   className="h-11 pr-10"
                 />
@@ -243,12 +346,17 @@ export default function SignUpPage() {
               </div>
             </div>
 
-            {error && <div className="text-sm text-red-600 bg-red-50 p-3 rounded-lg">{error}</div>}
+            {error && (
+              <div className="flex items-center space-x-2 text-sm text-red-600 bg-red-50 p-3 rounded-lg">
+                <AlertCircle className="h-4 w-4" />
+                <span>{error}</span>
+              </div>
+            )}
 
             <Button
               type="submit"
               className="w-full h-11 bg-gradient-to-r from-teal-500 to-blue-600 hover:from-teal-600 hover:to-blue-700"
-              disabled={isLoading}
+              disabled={isLoading || validationErrors.registration_number !== "" || validationErrors.password !== ""}
             >
               {isLoading ? "Creating Account..." : "Create Account"}
             </Button>

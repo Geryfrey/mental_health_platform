@@ -28,10 +28,11 @@ export function AnalyticsOverview() {
   const [stats, setStats] = useState({
     totalStudents: 0,
     totalProfessionals: 0,
-    criticalCases: 0,
+    highRiskCases: 0,
     totalResources: 0,
     totalAssessments: 0,
     verifiedProfessionals: 0,
+    totalAppointments: 0,
   })
 
   const [chartData, setChartData] = useState<{
@@ -59,38 +60,42 @@ export function AnalyticsOverview() {
       console.log("Fetching analytics data...")
 
       // Fetch basic stats
-      const [usersData, resourcesData, assessmentsData, professionalsData] = await Promise.all([
+      const [usersData, resourcesData, assessmentsData, professionalsData, appointmentsData] = await Promise.all([
         supabase.from("users").select("user_type"),
         supabase.from("resources").select("id"),
         supabase.from("assessments").select("*"),
         supabase.from("professionals").select("is_verified"),
+        supabase.from("appointments").select("id"),
       ])
 
-      console.log("Raw data:", { usersData, assessmentsData, professionalsData })
+      console.log("Raw data:", { usersData, assessmentsData, professionalsData, appointmentsData })
 
       const users = usersData.data || []
       const assessments = assessmentsData.data || []
       const professionals = professionalsData.data || []
+      const appointments = appointmentsData.data || []
 
       console.log("Processed data:", {
         users: users.length,
         assessments: assessments.length,
         professionals: professionals.length,
+        appointments: appointments.length,
       })
 
       // Calculate basic stats
       const totalStudents = users.filter((u) => u.user_type === "student").length
       const totalProfessionals = users.filter((u) => u.user_type === "professional").length
-      const criticalCases = assessments.filter((a) => a.risk_level === "critical").length
+      const highRiskCases = assessments.filter((a) => a.risk_level === "high").length
       const verifiedProfessionals = professionals.filter((p) => p.is_verified).length
 
       setStats({
         totalStudents,
         totalProfessionals,
-        criticalCases,
+        highRiskCases,
         totalResources: resourcesData.data?.length || 0,
         totalAssessments: assessments.length,
         verifiedProfessionals,
+        totalAppointments: appointments.length,
       })
 
       // Process chart data
@@ -107,12 +112,11 @@ export function AnalyticsOverview() {
   const processChartData = (assessments: any[]) => {
     console.log("Processing chart data for", assessments.length, "assessments")
 
-    // Risk level distribution
+    // Risk level distribution (only 3 levels now)
     const riskLevels = [
       { name: "Low", value: assessments.filter((a) => a.risk_level === "low").length, color: "#10B981" },
       { name: "Moderate", value: assessments.filter((a) => a.risk_level === "moderate").length, color: "#F59E0B" },
-      { name: "High", value: assessments.filter((a) => a.risk_level === "high").length, color: "#F97316" },
-      { name: "Critical", value: assessments.filter((a) => a.risk_level === "critical").length, color: "#EF4444" },
+      { name: "High", value: assessments.filter((a) => a.risk_level === "high").length, color: "#EF4444" },
     ]
 
     console.log("Risk levels:", riskLevels)
@@ -183,8 +187,8 @@ export function AnalyticsOverview() {
       weeks.push({
         week: i === 0 ? "This Week" : `${i} week${i > 1 ? "s" : ""} ago`,
         assessments: weekAssessments.length,
-        critical: weekAssessments.filter((a) => a.risk_level === "critical").length,
         high: weekAssessments.filter((a) => a.risk_level === "high").length,
+        moderate: weekAssessments.filter((a) => a.risk_level === "moderate").length,
       })
     }
 
@@ -240,7 +244,7 @@ export function AnalyticsOverview() {
   return (
     <div className="space-y-8">
       {/* Enhanced Stats Cards */}
-      <div className="grid grid-cols-1 md:grid-cols-3 lg:grid-cols-6 gap-6">
+      <div className="grid grid-cols-1 md:grid-cols-3 lg:grid-cols-7 gap-6">
         <Card className="border-0 shadow-lg bg-gradient-to-br from-blue-50 to-teal-50">
           <CardContent className="p-6">
             <div className="flex items-center justify-between">
@@ -274,8 +278,8 @@ export function AnalyticsOverview() {
           <CardContent className="p-6">
             <div className="flex items-center justify-between">
               <div>
-                <p className="text-sm font-medium text-gray-600">Critical Cases</p>
-                <p className="text-3xl font-bold text-gray-900">{stats.criticalCases}</p>
+                <p className="text-sm font-medium text-gray-600">High Risk Cases</p>
+                <p className="text-3xl font-bold text-gray-900">{stats.highRiskCases}</p>
               </div>
               <div className="bg-gradient-to-r from-red-500 to-orange-600 p-3 rounded-lg">
                 <AlertTriangle className="h-6 w-6 text-white" />
@@ -316,6 +320,20 @@ export function AnalyticsOverview() {
           <CardContent className="p-6">
             <div className="flex items-center justify-between">
               <div>
+                <p className="text-sm font-medium text-gray-600">Appointments</p>
+                <p className="text-3xl font-bold text-gray-900">{stats.totalAppointments}</p>
+              </div>
+              <div className="bg-gradient-to-r from-indigo-500 to-purple-600 p-3 rounded-lg">
+                <Activity className="h-6 w-6 text-white" />
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+
+        <Card className="border-0 shadow-lg bg-gradient-to-br from-teal-50 to-green-50">
+          <CardContent className="p-6">
+            <div className="flex items-center justify-between">
+              <div>
                 <p className="text-sm font-medium text-gray-600">Avg Wellness</p>
                 <p className="text-3xl font-bold text-gray-900">
                   {chartData.monthlyTrends.length > 0
@@ -326,7 +344,7 @@ export function AnalyticsOverview() {
                     : 0}
                 </p>
               </div>
-              <div className="bg-gradient-to-r from-indigo-500 to-purple-600 p-3 rounded-lg">
+              <div className="bg-gradient-to-r from-teal-500 to-green-600 p-3 rounded-lg">
                 <TrendingUp className="h-6 w-6 text-white" />
               </div>
             </div>
@@ -340,7 +358,7 @@ export function AnalyticsOverview() {
         <Card className="border-0 shadow-lg">
           <CardHeader>
             <CardTitle>Risk Level Distribution</CardTitle>
-            <CardDescription>Current risk assessment breakdown</CardDescription>
+            <CardDescription>Current risk assessment breakdown (3 levels)</CardDescription>
           </CardHeader>
           <CardContent>
             {chartData.riskLevels.length > 0 ? (
@@ -402,7 +420,7 @@ export function AnalyticsOverview() {
         <Card className="border-0 shadow-lg">
           <CardHeader>
             <CardTitle>Weekly Assessment Activity</CardTitle>
-            <CardDescription>Assessment volume and critical cases over time</CardDescription>
+            <CardDescription>Assessment volume and high-risk cases over time</CardDescription>
           </CardHeader>
           <CardContent>
             {chartData.weeklyAssessments.some((week) => week.assessments > 0) ? (
@@ -413,7 +431,7 @@ export function AnalyticsOverview() {
                   <YAxis />
                   <Tooltip />
                   <Area type="monotone" dataKey="assessments" stackId="1" stroke="#0D9488" fill="#0D9488" />
-                  <Area type="monotone" dataKey="critical" stackId="2" stroke="#EF4444" fill="#EF4444" />
+                  <Area type="monotone" dataKey="high" stackId="2" stroke="#EF4444" fill="#EF4444" />
                 </AreaChart>
               </ResponsiveContainer>
             ) : (
@@ -492,25 +510,25 @@ export function AnalyticsOverview() {
         </Card>
       </div>
 
-      {/* Critical Cases Alert */}
-      {stats.criticalCases > 0 && (
+      {/* High Risk Cases Alert */}
+      {stats.highRiskCases > 0 && (
         <Card className="border-0 shadow-lg border-l-4 border-l-red-500">
           <CardHeader>
             <CardTitle className="flex items-center space-x-2 text-red-700">
               <AlertTriangle className="h-5 w-5" />
-              <span>Critical Cases Alert</span>
+              <span>High Risk Cases Alert</span>
             </CardTitle>
             <CardDescription>
-              There are {stats.criticalCases} students with critical risk levels requiring immediate attention.
+              There are {stats.highRiskCases} students with high risk levels requiring professional attention.
             </CardDescription>
           </CardHeader>
           <CardContent>
             <div className="flex space-x-4">
               <Badge variant="destructive" className="text-lg px-4 py-2">
-                {stats.criticalCases} Critical Cases
+                {stats.highRiskCases} High Risk Cases
               </Badge>
               <Badge variant="outline" className="text-orange-600 border-orange-200">
-                Immediate Action Required
+                Professional Support Recommended
               </Badge>
             </div>
           </CardContent>

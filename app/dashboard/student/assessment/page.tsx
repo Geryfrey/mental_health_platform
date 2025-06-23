@@ -6,8 +6,22 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Button } from "@/components/ui/button"
 import { Textarea } from "@/components/ui/textarea"
 import { Badge } from "@/components/ui/badge"
+import { Input } from "@/components/ui/input"
+import { Label } from "@/components/ui/label"
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog"
-import { Brain, MessageCircle, Lightbulb, Send, Loader2, ExternalLink, BookOpen, User } from "lucide-react"
+import {
+  Brain,
+  MessageCircle,
+  Lightbulb,
+  Send,
+  Loader2,
+  ExternalLink,
+  BookOpen,
+  User,
+  Calendar,
+  Phone,
+  MapPin,
+} from "lucide-react"
 import { supabase } from "@/lib/supabase"
 import { LogoutButton } from "@/components/layout/logout-button"
 
@@ -28,6 +42,14 @@ export default function AssessmentPage() {
   const [recommendations, setRecommendations] = useState<any[]>([])
   const [selectedResource, setSelectedResource] = useState<any>(null)
   const [isResourceDialogOpen, setIsResourceDialogOpen] = useState(false)
+  const [selectedProfessional, setSelectedProfessional] = useState<any>(null)
+  const [isAppointmentDialogOpen, setIsAppointmentDialogOpen] = useState(false)
+  const [appointmentForm, setAppointmentForm] = useState({
+    preferredDate: "",
+    preferredTime: "",
+    notes: "",
+  })
+  const [isBookingAppointment, setIsBookingAppointment] = useState(false)
   const router = useRouter()
 
   const handleSubmit = async () => {
@@ -75,8 +97,8 @@ export default function AssessmentPage() {
   }
 
   const fetchRecommendations = async (riskLevel: string, conditions: string[]) => {
-    if (riskLevel === "critical") {
-      // Get nearby mental health professionals
+    if (riskLevel === "high") {
+      // Get nearby mental health professionals for high risk
       const { data: professionals } = await supabase
         .from("professionals")
         .select(`
@@ -84,11 +106,11 @@ export default function AssessmentPage() {
           users!inner(full_name, phone, location)
         `)
         .eq("is_verified", true)
-        .limit(3)
+        .limit(5)
 
       setRecommendations(professionals || [])
     } else {
-      // Get relevant resources based on conditions from the seeded database
+      // Get relevant resources based on conditions from the seeded database for low/moderate risk
       let query = supabase.from("resources").select("*")
 
       // If we have specific conditions, filter by them, otherwise get general resources
@@ -114,6 +136,72 @@ export default function AssessmentPage() {
     setIsResourceDialogOpen(true)
   }
 
+  const openAppointmentDialog = (professional: any) => {
+    setSelectedProfessional(professional)
+    setIsAppointmentDialogOpen(true)
+  }
+
+  const handleBookAppointment = async () => {
+    if (!appointmentForm.preferredDate || !appointmentForm.preferredTime) {
+      alert("Please select both date and time for your appointment.")
+      return
+    }
+
+    setIsBookingAppointment(true)
+
+    try {
+      const userStr = localStorage.getItem("user")
+      if (!userStr) return router.push("/login")
+      const user = JSON.parse(userStr)
+
+      console.log("Booking appointment with data:", {
+        studentId: user.id,
+        professionalId: selectedProfessional.user_id,
+        preferredDate: appointmentForm.preferredDate,
+        preferredTime: appointmentForm.preferredTime,
+        notes: appointmentForm.notes,
+      })
+
+      const res = await fetch("/api/appointments", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          studentId: user.id,
+          professionalId: selectedProfessional.user_id,
+          preferredDate: appointmentForm.preferredDate,
+          preferredTime: appointmentForm.preferredTime,
+          notes: appointmentForm.notes,
+        }),
+      })
+
+      const responseData = await res.json()
+      console.log("API Response:", responseData)
+
+      if (!res.ok) {
+        console.error("API Error:", responseData)
+        alert(
+          `Failed to book appointment: ${responseData.error}\nDetails: ${responseData.details || "No additional details"}`,
+        )
+        return
+      }
+
+      if (responseData.success) {
+        alert("Appointment request sent successfully! The professional will contact you to confirm.")
+        setIsAppointmentDialogOpen(false)
+        setAppointmentForm({ preferredDate: "", preferredTime: "", notes: "" })
+      } else {
+        alert(`Failed to book appointment: ${responseData.error || "Unknown error"}`)
+      }
+    } catch (err) {
+      console.error("Booking error:", err)
+      alert(
+        `Sorry, we couldn't book your appointment right now. Error: ${err instanceof Error ? err.message : "Unknown error"}`,
+      )
+    } finally {
+      setIsBookingAppointment(false)
+    }
+  }
+
   const getRiskLevelColor = (level: string) => {
     switch (level) {
       case "low":
@@ -121,8 +209,6 @@ export default function AssessmentPage() {
       case "moderate":
         return "bg-yellow-100 text-yellow-800 border-yellow-200"
       case "high":
-        return "bg-orange-100 text-orange-800 border-orange-200"
-      case "critical":
         return "bg-red-100 text-red-800 border-red-200"
       default:
         return "bg-gray-100 text-gray-800 border-gray-200"
@@ -326,13 +412,11 @@ export default function AssessmentPage() {
             <Card className="border-0 shadow-lg">
               <CardHeader>
                 <CardTitle>
-                  {analysis.riskLevel === "critical"
-                    ? "Recommended Mental Health Professionals"
-                    : "Recommended Resources"}
+                  {analysis.riskLevel === "high" ? "Recommended Mental Health Professionals" : "Recommended Resources"}
                 </CardTitle>
                 <CardDescription>
-                  {analysis.riskLevel === "critical"
-                    ? "We recommend speaking with a mental health professional immediately"
+                  {analysis.riskLevel === "high"
+                    ? "We recommend speaking with a mental health professional. You can book an appointment directly."
                     : "Helpful resources tailored to your needs"}
                 </CardDescription>
               </CardHeader>
@@ -343,23 +427,47 @@ export default function AssessmentPage() {
                       key={index}
                       className="p-4 bg-white rounded-lg border border-gray-200 hover:shadow-md transition-shadow"
                     >
-                      {analysis.riskLevel === "critical" ? (
+                      {analysis.riskLevel === "high" ? (
                         <div>
-                          <div className="flex items-center space-x-2 mb-2">
-                            <User className="h-4 w-4 text-teal-600" />
+                          <div className="flex items-center space-x-2 mb-3">
+                            <User className="h-5 w-5 text-teal-600" />
                             <h4 className="font-medium text-gray-900">{item.users.full_name}</h4>
                           </div>
-                          <p className="text-sm text-gray-600">{item.specialization}</p>
-                          <p className="text-sm text-gray-600">{item.clinic_name}</p>
-                          <p className="text-sm text-gray-600">{item.users.location}</p>
-                          <p className="text-sm text-teal-600 mt-2 font-medium">{item.users.phone}</p>
-                          <Button
-                            size="sm"
-                            className="mt-3 bg-red-600 hover:bg-red-700"
-                            onClick={() => window.open(`tel:${item.users.phone}`, "_self")}
-                          >
-                            Call Now
-                          </Button>
+                          <div className="space-y-2 mb-4">
+                            <p className="text-sm text-gray-600 flex items-center">
+                              <span className="font-medium">Specialization:</span> {item.specialization}
+                            </p>
+                            <p className="text-sm text-gray-600 flex items-center">
+                              <span className="font-medium">Clinic:</span> {item.clinic_name}
+                            </p>
+                            <p className="text-sm text-gray-600 flex items-center">
+                              <MapPin className="h-4 w-4 mr-1" />
+                              {item.users.location}
+                            </p>
+                            <p className="text-sm text-teal-600 font-medium flex items-center">
+                              <Phone className="h-4 w-4 mr-1" />
+                              {item.users.phone}
+                            </p>
+                          </div>
+                          <div className="flex space-x-2">
+                            <Button
+                              size="sm"
+                              className="bg-teal-600 hover:bg-teal-700"
+                              onClick={() => openAppointmentDialog(item)}
+                            >
+                              <Calendar className="h-4 w-4 mr-1" />
+                              Book Appointment
+                            </Button>
+                            <Button
+                              size="sm"
+                              variant="outline"
+                              className="text-teal-600 border-teal-200 hover:bg-teal-50"
+                              onClick={() => window.open(`tel:${item.users.phone}`, "_self")}
+                            >
+                              <Phone className="h-4 w-4 mr-1" />
+                              Call Now
+                            </Button>
+                          </div>
                         </div>
                       ) : (
                         <div className="cursor-pointer" onClick={() => openResourceDialog(item)}>
@@ -476,6 +584,99 @@ export default function AssessmentPage() {
                     </Button>
                   </div>
                 )}
+              </div>
+            </>
+          )}
+        </DialogContent>
+      </Dialog>
+
+      {/* Appointment Booking Dialog */}
+      <Dialog open={isAppointmentDialogOpen} onOpenChange={setIsAppointmentDialogOpen}>
+        <DialogContent className="sm:max-w-[500px]">
+          {selectedProfessional && (
+            <>
+              <DialogHeader>
+                <DialogTitle className="flex items-center space-x-2">
+                  <Calendar className="h-5 w-5 text-teal-600" />
+                  <span>Book Appointment</span>
+                </DialogTitle>
+                <DialogDescription>
+                  Schedule an appointment with {selectedProfessional.users.full_name}
+                </DialogDescription>
+              </DialogHeader>
+
+              <div className="space-y-4">
+                {/* Professional Info */}
+                <div className="p-3 bg-gray-50 rounded-lg">
+                  <h4 className="font-medium text-gray-900">{selectedProfessional.users.full_name}</h4>
+                  <p className="text-sm text-gray-600">{selectedProfessional.specialization}</p>
+                  <p className="text-sm text-gray-600">{selectedProfessional.clinic_name}</p>
+                </div>
+
+                {/* Appointment Form */}
+                <div className="space-y-4">
+                  <div>
+                    <Label htmlFor="preferredDate">Preferred Date</Label>
+                    <Input
+                      id="preferredDate"
+                      type="date"
+                      value={appointmentForm.preferredDate}
+                      onChange={(e) => setAppointmentForm({ ...appointmentForm, preferredDate: e.target.value })}
+                      min={new Date().toISOString().split("T")[0]}
+                    />
+                  </div>
+
+                  <div>
+                    <Label htmlFor="preferredTime">Preferred Time</Label>
+                    <Input
+                      id="preferredTime"
+                      type="time"
+                      value={appointmentForm.preferredTime}
+                      onChange={(e) => setAppointmentForm({ ...appointmentForm, preferredTime: e.target.value })}
+                    />
+                  </div>
+
+                  <div>
+                    <Label htmlFor="notes">Additional Notes (Optional)</Label>
+                    <Textarea
+                      id="notes"
+                      placeholder="Any specific concerns or information you'd like to share..."
+                      value={appointmentForm.notes}
+                      onChange={(e) => setAppointmentForm({ ...appointmentForm, notes: e.target.value })}
+                      className="min-h-[80px]"
+                    />
+                  </div>
+                </div>
+
+                {/* Action Buttons */}
+                <div className="flex justify-end space-x-2 pt-4">
+                  <Button
+                    variant="outline"
+                    onClick={() => {
+                      setIsAppointmentDialogOpen(false)
+                      setAppointmentForm({ preferredDate: "", preferredTime: "", notes: "" })
+                    }}
+                  >
+                    Cancel
+                  </Button>
+                  <Button
+                    onClick={handleBookAppointment}
+                    disabled={isBookingAppointment || !appointmentForm.preferredDate || !appointmentForm.preferredTime}
+                    className="bg-teal-600 hover:bg-teal-700"
+                  >
+                    {isBookingAppointment ? (
+                      <>
+                        <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                        Booking...
+                      </>
+                    ) : (
+                      <>
+                        <Calendar className="h-4 w-4 mr-2" />
+                        Book Appointment
+                      </>
+                    )}
+                  </Button>
+                </div>
               </div>
             </>
           )}
